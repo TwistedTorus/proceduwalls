@@ -1,0 +1,9 @@
+- determine what file format laser cutters need. dxf?
+- determine thickness of material that laser cutters can cut. probably 3-5 mm?
+- understand dxf file format, can it be derived from svg?
+- generate some terrain profiles. recatange + jagged cut away + windows (optional).
+
+pricing:
+
+- get rental price of laser cutting machines.
+- pricing of mdf boards.
