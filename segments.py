@@ -14,7 +14,7 @@ def plus(v1, v2):
 def perp(vec):
     #[[0, 1]  [x]
     # [1,0]] [y]
-    return (vec[1], vec[0])
+    return (-vec[1], vec[0])
 
 def magn(vec):
     return (vec[0]**2 + vec[1]**2)**0.5
@@ -118,7 +118,30 @@ class Segment:
             curr_point = brick_points[-1]
         self.points = [self.start] + brick_points + [self.end]
 
-def crumbling_brick_wall(start, end):
+    def zigify(self, amplitude):
+        # vector from start to end
+        N_zigs = 10
+        V = diff(self.end, self.start)
+        l = magn(V)
+        v = (V[0]/(N_zigs*2), V[1]/(N_zigs*2))
+        Norm = perp(V)
+        norm = (amplitude*Norm[0]/l, amplitude*Norm[1]/l)
+        half_norm = (norm[0]/2, norm[1]/2)
+        neg_norm = (-1*norm[0], -1*norm[1])
+        zig_points = []
+        curr_point = plus(self.start, half_norm)
+        for i in range(N_zigs):
+            zig_points.append(curr_point)
+            curr_point = plus(curr_point, v)
+            zig_points.append(curr_point)
+            curr_point = plus(curr_point, neg_norm)
+            zig_points.append(curr_point)
+            curr_point = plus(curr_point, v)
+            zig_points.append(curr_point)
+            curr_point = plus(curr_point, norm)
+        self.points = zig_points
+
+def crumbling_edge(start, end, brick_size = (1,1)):
     def roughen(segment, level):
         i = 0
         while i < level:
@@ -135,7 +158,8 @@ def crumbling_brick_wall(start, end):
             roughen(seg,2)
             seg.fuse_children()
         else:
-            seg.brickify(1*unit,1*unit)
+            seg.brickify(brick_size[0]*unit,brick_size[1]*unit)
+    base.fuse_children()
     return base
 
 
@@ -144,8 +168,13 @@ if __name__=="__main__":
     fig, ax = plt.subplots()
 
     for i in range(8):
-        crumble = crumbling_brick_wall((0,0), (100,100))
+        crumble = crumbling_edge((0,0), (100,100))
         crumble.sketch(ax, line_colour = 'k-')
+
+    #seg = Segment((0,0),(100,100))
+    #seg.sketch(ax)
+    #seg.zigify(10)
+    #seg.sketch(ax)
 
     plt.show()
 
