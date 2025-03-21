@@ -28,6 +28,9 @@ class Segment:
         self.up    = up
         self.points = [start, end]
 
+    def __str__(self):
+        return f"Segment(from {self.start} to {self.end})"
+
     def sketch(self, ax, line_colour='k-'):
         if self.child_segments == []:
             x_p = [p[0] for p in self.points]
