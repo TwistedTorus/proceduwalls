@@ -34,6 +34,12 @@ def to_svg(traces):
         elem.append(trace_polygon)
     return svg.SVG( width = 250, height = 250, elements = elem)
 
+def verify_wall_code(wall_code):
+    # invalid build codes, cant have multiple nodes along a corner index
+    return True, []
+def verify_floor_code(floor_code):
+    return True, []
+
 class Node:
     def __init__(self, x, y, l):
         self.x = x
@@ -68,7 +74,6 @@ class Wall:
         self.bottom = bottom
         self.top = top
         self.segments = self.left + self.top + self.right + self.bottom
-        #self.segments = self.top
 
     def sketch(self, ax):
         for seg in self.segments:
@@ -79,10 +84,14 @@ class Wall:
     def __repr__(self):
         return str(self)
 
+class Floor:
+    def __init__(self, nodes, level):
+        self.nodes = nodes
+        self.level = level
+
 class Ruin:
     '''
-    want to be able to define: dimensions, N intact walls, floors, windows
-    a method to convert this to an svg that should be easy to cut out.
+    To do: Windows, and interlocking teeth stuff.
     '''
     def __init__(self, dimensions, thickness, floors = 2):
         '''
@@ -94,6 +103,9 @@ class Ruin:
             7   3
             |   |
             6-5-4
+
+        dimensions defines the outer size of the ruin, so a thickness > 0 will define the size
+        of the interlock cuts.
 
         '''
         self.dimensions = dimensions
@@ -136,17 +148,20 @@ class Ruin:
         n_y = self.nodes[0].y
         self.nodes.append(Node(n_x,n_y,l_4[1]))
 
-    def verify_build_code(self):
-        # invalid build codes, cant have multiple nodes along a corner index
-        pass
 
     def wall_code_to_walls(self,wall_code):
+
+        code_is_valid, errors = verify_wall_code(wall_code)
+        if not code_is_valid:
+            errors_str = str(errors)
+            raise Exception("Invalid Wall Code: "+errors_str)
+
         wall_node_codes = wall_code.split("-")
         node_floor_indexs = []
         for wnc in wall_node_codes:
             nis, fis = wnc.split("/")
-            node_index = int(nis[1:])
-            floor_index = int(fis[1:])
+            node_index = int(nis[:])
+            floor_index = int(fis[:])
             node_floor_indexs.append((node_index, floor_index))
         # now we have the node floor indexs,
 
@@ -180,29 +195,49 @@ class Ruin:
             w = wall_from_segments(segments)
             walls.append(w)
 
-        fig, ax = plt.subplots()
+        return walls
 
-        for wall in walls:
-            print(wall)
-            wall.sketch(ax)
+    def floor_code_to_floor(self, floor_code):
 
-        plt.show()
+        code_is_valid, errors = verify_floor_code(floor_code)
+        if not code_is_valid:
+            errors_str = str(errors)
+            raise Exception("Invalid Floor Code: "+errors_str)
+
+        level_str, code_str = floor_code.split("-")
+        nodes = [self.nodes[int(x)] for x in code_str.split("/")]
+        level = int(level_str[1:])
+        return Floor(nodes,level)
 
 
-
-
-
-    def generate_from_build_code(self, wall_code, floor_code):
+    def generate_from_build_code(self, wall_code, floor_codes):
         '''
         wall code 8 point code N0F0,N1F2,N2F2,N3F1
         floor code format: [0,1,2,3,0] we know that 3,0 overhangs empty space
 
         '''
         self.walls = self.wall_code_to_walls(wall_code)
+        self.floors = []
+        for fc in floor_codes:
+            floor = self.floor_code_to_floor(fc)
+            self.floors.append(floor)
 
+'''
+basic ruins:
+    1. a corner piece with a bit of first floor
+    2. a half building with a first floor
+    3. a fully enclosed building, with a complete floor on the roof (bunker?)
+    4. a two part ruin, a corner and a half building? <- maybe this should be
+       considered invalid. Should be defined as two ruins.
+'''
 
-wc = "N0/F0-N1/F2-N2/F2-N4/F1"
-#wc = "N0/F0-N1/F2-N2/F2-N3/F0-N4/F1"
-wc = "N0/F0-N1/F2-N2/F2-N4/F0-N5/F1-N5/F2-N6/F1-N7/F1-N8/F0"
+# format: Gi/Fi-
+wc = "0/0-1/2-2/2-4/0"
+#wc = "0/0-1/2-2/2-3/0-4/1"
+
+#wc = "0/0-1/2-2/2-4/0-5/1-5/2-6/1-7/1-8/0"
+fc1 = "f0-0/2/4/0"
+fc2 = "f1-1/2/3/1"
+
 b = Ruin( (200,100,100), 3)
-b.generate_from_build_code(wc,"--")
+b.generate_from_build_code(wc,[fc1,fc2])
