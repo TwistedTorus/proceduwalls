@@ -1,8 +1,8 @@
-from segments import Segment, crumbling_edge
 from mpl_toolkits import mplot3d
-
 import matplotlib.pyplot as plt
 import svg
+
+from trace import wall_to_trace
 
 ## this script generates a corner svg that is very cuttoutable.
 #
@@ -30,6 +30,14 @@ def verify_floor_code(floor_code):
 def equiv(n1, n2):
     return n1.x == n2.x and n1.y == n2.y and n1.z == n2.z
 
+def cross_prod(edge_1, edge_2):
+    n11, n12 = edge_1
+    n21, n22 = edge_2
+    dx1, dy1, dz1 = n12.x - n11.x, n12.y-n11.y, n12.z - n11.z
+    dx2, dy2, dz2 = n22.x - n21.x, n22.y-n21.y, n22.z - n21.z
+
+    return (dy1*dz2 - dz1*dy2, dz1*dx2 - dz2*dx1, dx1*dy2 - dy1*dx2)
+
 class Node:
     def __init__(self, x, y, z):
         self.x = x
@@ -49,7 +57,6 @@ def nodes_to_edges(nodes):
     return edges
 
 def edge_match(e1, e2):
-    #print("comparing", e1[0],e1[1],e2[0],e2[1])
     return (equiv(e1[0], e2[0]) and equiv(e1[1], e2[1])) or (equiv(e1[0], e2[1]) and equiv(e1[1], e2[0]))
 
 def create_connector(edge):
@@ -63,22 +70,52 @@ def create_connector(edge):
 
     return (n1, cn1), (cn1, cn2), (cn2,n2)
 
+def normalise(vec):
+    M = (vec[0]**2 + vec[1]**2 + vec[2]**2)**0.5
+    if M == 0:
+        return vec
+    return (vec[0]/M, vec[1]/M, vec[2]/M)
+
 class Wall:
 
-    def __init__(self, top_wall_nodes, bottom_wall_nodes):
+    def __init__(self, wall_id, top_wall_nodes, bottom_wall_nodes):
 
+        self.id = wall_id
         self.wall_nodes = top_wall_nodes+bottom_wall_nodes[::-1]
-
 
         self.twn = top_wall_nodes
         self.bwn = bottom_wall_nodes
 
         # derive a list of edges (which we can make into segments and crumbling edges eventually)
-        self.wall_edges = nodes_to_edges(self.wall_nodes)
+        self.wall_edges = nodes_to_edges(self.wall_nodes + [self.wall_nodes[0]])
+
         # connecting edges. Connecting edges will have a standard format, 4 square cuts?
-        self.connecter_edges = []
+        self.floor_connecter_edges = []
         # the edges which constitue part of a wall base.
         self.base_edges = nodes_to_edges(bottom_wall_nodes)
+
+        self.generate_wall_connecter_edges()
+        self.normal = self.normal()
+
+        self.free_edges = nodes_to_edges(self.twn)
+
+    def normal(self):
+        bottom_edge = self.base_edges[0]
+        up = (Node(0,0,0), Node(0,0,1))
+        return normalise(cross_prod(up, bottom_edge))
+
+    def generate_wall_connecter_edges(self):
+        def in_line (n1, n2):
+            return n1.x == n2.x and n1.y == n2.y
+        c1 = self.bwn[0]
+        c2 = self.bwn[-1]
+        self.wall_connecter_edges  = []
+
+        for edge in self.wall_edges:
+            n1, n2 = edge
+            if in_line(n1,n2) and not equiv(n1, n2):
+                if in_line(n1,c1) or in_line(n1,c2):
+                    self.wall_connecter_edges.append(edge)
 
     def detect_floor_connection(self, floor):
         fl = floor.floor_level
@@ -88,7 +125,7 @@ class Wall:
             for f2_edge in floor.edges:
                 if edge_match(f1_edge, f2_edge):
                     pre_c, c, post_c = create_connector(f1_edge)
-                    self.connecter_edges.append(c)
+                    self.floor_connecter_edges.append(c)
                     floor.connecter_edges.append(c)
                     floor.replace_edge(f2_edge, [pre_c, c, post_c])
                     if not f2_edge in floor.non_free_edges:
@@ -102,24 +139,28 @@ class Wall:
         z = [n.z for n in self.wall_nodes]
         ax.plot3D(x, y, z, 'green', alpha = opacity)
 
-        for ce in self.connecter_edges:
+        for ce in self.floor_connecter_edges:
             x = [n.x for n in ce]
             y = [n.y for n in ce]
             z = [n.z+3 for n in ce]
             ax.plot3D(x,y,z,'red', alpha = opacity)
 
+        for ce in self.wall_connecter_edges:
+            x = [n.x for n in ce]
+            y = [n.y for n in ce]
+            z = [n.z for n in ce]
+            ax.plot3D(x,y,z,'red', linestyle="dashed")
+
 
     def __str__(self):
-        s = "Wall(\n"
-        for node in self.wall_nodes:
-            s += f"  {str(node)}"
-        return s + ")"
+        return f"Wall({self.id})"
     def __repr__(self):
         return str(self)
 
 class Floor:
 
-    def __init__(self, nodes):
+    def __init__(self, floor_id, nodes):
+        self.id = floor_id
         self.nodes = nodes
         self.edges = nodes_to_edges(nodes)
         self.floor_level = nodes[0].z
@@ -127,6 +168,8 @@ class Floor:
         self.connecter_edges = []
         self.free_edges = []
         self.non_free_edges = []
+
+        self.normal = (0,0,1)
 
     def __str__(self):
         s = "Floor(\n"
@@ -246,8 +289,6 @@ class Ruin:
             bn = self.base_nodes[node_index]
             z = floor_index * self.df
             wall_node = Node(bn.x,bn.y,z)
-            print(wnc)
-            print(wall_node)
 
             for wi,wall_base in self.wall_bases.items():
                 if bn in wall_base:
@@ -256,21 +297,17 @@ class Ruin:
         # now we have the node floor indexs,
         walls = []
         for i in range(4):
-            print("wall",i)
             wn = wall_nodes[i]
             bn = self.wall_bases[i]
             if i == 3:
                 wn = wn[1:] + [wn[0]]
-            print(wn)
-            print(bn)
             if len(wn) > 1:
-                w = Wall(wn, bn)
+                w = Wall(f"w{i}",wn, bn)
                 walls.append(w)
-                print(w.wall_nodes)
 
         return walls
 
-    def floor_code_to_floor(self, floor_code):
+    def floor_code_to_floor(self, floor_code, f_id):
 
         code_is_valid, errors = verify_floor_code(floor_code)
         if not code_is_valid:
@@ -284,7 +321,14 @@ class Ruin:
         for n in nodes:
             floor_node = Node(n.x,n.y,level*self.df)
             floor_nodes.append(floor_node)
-        return Floor(floor_nodes)
+        return Floor(f_id,floor_nodes)
+
+    def fit_walls_and_floors(self):
+
+        for floor in self.floors:
+            for wall in self.walls:
+                wall.detect_floor_connection(floor)
+            floor.detect_free_edges()
 
     def generate_from_build_code(self, wall_code, floor_codes):
         '''
@@ -294,17 +338,11 @@ class Ruin:
         '''
         self.walls = self.wall_code_to_walls(wall_code)
         self.floors = []
-        for fc in floor_codes:
-            floor = self.floor_code_to_floor(fc)
+        for i,fc in enumerate(floor_codes):
+            floor = self.floor_code_to_floor(fc, f"f{i}")
             self.floors.append(floor)
 
-    def fit_walls_and_floors(self):
-
-        for floor in self.floors:
-            for wall in self.walls:
-                wall.detect_floor_connection(floor)
-            floor.detect_free_edges()
-
+        self.fit_walls_and_floors()
 
 
     def sketch_3d(self, ax, opacity=0.5):
@@ -340,9 +378,19 @@ fc3 = "f1-5/6/7/5"
 
 b = Ruin( (200,100,100), 3)
 b.generate_from_build_code(wc,[fc1,fc2,fc3])
-b.fit_walls_and_floors()
+fig = plt.figure(figsize=plt.figaspect(0.5))
 
-ax = plt.axes(projection ='3d')
+ax_2d = fig.add_subplot(1,2,1)
+ax_2d.plot([0,1],[0,1])
+ax_3d = fig.add_subplot(1,2,2,projection='3d')
 
-b.sketch_3d(ax)
+b.sketch_3d(ax_3d)
+#for wall in b.walls:
+#    print(wall.normal)
+
+wall_trace = wall_to_trace(b.walls[1])
+
+for seg in wall_trace:
+    seg.sketch(ax_2d)
+
 plt.show()
