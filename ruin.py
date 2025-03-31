@@ -2,7 +2,7 @@ from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 import svg
 
-from trace import wall_to_trace
+from trace import wall_to_trace, sketch_trace, translate
 
 ## this script generates a corner svg that is very cuttoutable.
 #
@@ -104,6 +104,11 @@ class Wall:
         up = (Node(0,0,0), Node(0,0,1))
         return normalise(cross_prod(up, bottom_edge))
 
+    def base_length(self):
+        n1 = self.bwn[0]
+        n2 = self.bwn[-1]
+        return ((n1.x - n2.x)**2 + (n1.y - n2.y)**2)**0.5
+
     def generate_wall_connecter_edges(self):
         def in_line (n1, n2):
             return n1.x == n2.x and n1.y == n2.y
@@ -178,6 +183,7 @@ class Floor:
         return s + ")"
     def __repr__(self):
         return str(self)
+
 
     def sketch_3d(self, ax, opacity):
         x = [n.x for n in self.nodes]
@@ -358,39 +364,41 @@ class Ruin:
                 dz = 0
             ax.text(bn.x,bn.y,bn.z+dz,f"{str(i)}",color="black")
 
-'''
-basic ruins:
-    1. a corner piece with a bit of first floor
-    2. a half building with a first floor
-    3. a fully enclosed building, with a complete floor on the roof (bunker?)
-    4. a two part ruin, a corner and a half building? <- maybe this should be
-       considered invalid. Should be defined as two ruins.
-'''
+if __name__ == "__main__":
 
-# format: Gi/Fi-
-wc = "0/0-1/2-2/2-4/0"
-#wc = "0/0-1/2-2/2-3/0-4/1"
+    '''
+    basic ruins:
+        1. a corner piece with a bit of first floor
+        2. a half building with a first floor
+        3. a fully enclosed building, with a complete floor on the roof (bunker?)
+        4. a two part ruin, a corner and a half building? <- maybe this should be
+           considered invalid. Should be defined as two ruins.
+    '''
 
-wc = "0/0-1/2-2/2-4/0-5/1-5/2-6/1-7/1-8/0"
-fc1 = "f0-0/1/2/3/4/0"
-fc2 = "f1-1/2/3/1"
-fc3 = "f1-5/6/7/5"
+    # format: Gi/Fi-
+    wc = "0/0-1/2-2/2-4/0"
+    #wc = "0/0-1/2-2/2-3/0-4/1"
 
-b = Ruin( (200,100,100), 3)
-b.generate_from_build_code(wc,[fc1,fc2,fc3])
-fig = plt.figure(figsize=plt.figaspect(0.5))
+    wc = "0/0-1/2-2/2-4/0-5/1-5/2-6/1-7/1-8/0"
+    #fc1 = "f0-0/1/2/3/4/0"
+    fc2 = "f1-1/2/3/1"
+    #fc3 = "f1-5/6/7/5"
 
-ax_2d = fig.add_subplot(1,2,1)
-ax_2d.plot([0,1],[0,1])
-ax_3d = fig.add_subplot(1,2,2,projection='3d')
+    b = Ruin( (200,100,100), 3)
+    b.generate_from_build_code(wc,[fc2])
+    fig = plt.figure(figsize=plt.figaspect(0.5))
 
-b.sketch_3d(ax_3d)
-#for wall in b.walls:
-#    print(wall.normal)
+    ax_2d = fig.add_subplot(2,1,1)
+    ax_2d.plot([0,1],[0,1])
+    ax_3d = fig.add_subplot(2,1,2,projection='3d')
 
-wall_trace = wall_to_trace(b.walls[1])
-
-for seg in wall_trace:
-    seg.sketch(ax_2d)
-
-plt.show()
+    b.sketch_3d(ax_3d)
+    offset = 0
+    for i,wall in enumerate(b.walls):
+        traces = wall_to_trace(wall)
+        wall_len = wall.base_length()
+        for trace in traces:
+            trace = translate(trace, offset, 0)
+            sketch_trace(trace, ax_2d)
+        offset += wall_len + 10
+    plt.show()

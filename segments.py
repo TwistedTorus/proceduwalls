@@ -28,6 +28,27 @@ class Segment:
         self.up    = up
         self.points = [start, end]
 
+    def translate(self, x, y):
+        self.start = (self.start[0] + x, self.start[1] + y)
+        self.end = (self.end[0] + x, self.end[1] + y)
+        for i,point in enumerate(self.points):
+            self.points[i] = (self.points[i][0]+x, self.points[i][1]+y)
+
+        for child_seg in self.child_segments:
+            child_seg.translate(x,y)
+
+    def remap_points(self, point_remapping):
+
+        for i,point in enumerate(self.points):
+            if point in point_remapping.keys():
+                self.points[i] = point_remapping[point]
+
+        if self.start in point_remapping.keys():
+            self.start = point_remapping[self.start]
+
+        if self.end in point_remapping.keys():
+            self.end = point_remapping[self.end]
+
     def __str__(self):
         return f"Segment(from {self.start} to {self.end})"
 
@@ -121,9 +142,9 @@ class Segment:
             curr_point = brick_points[-1]
         self.points = [self.start] + brick_points + [self.end]
 
-    def zigify(self, amplitude):
+    def zigify(self, amplitude, zigs = 5):
         # vector from start to end
-        N_zigs = 10
+        N_zigs = zigs
         V = diff(self.end, self.start)
         l = magn(V)
         v = (V[0]/(N_zigs*2), V[1]/(N_zigs*2))
@@ -143,6 +164,8 @@ class Segment:
             zig_points.append(curr_point)
             curr_point = plus(curr_point, norm)
         self.points = zig_points
+        self.start = zig_points[0]
+        self.end = zig_points[-1]
 
 def crumbling_edge(start, end, brick_size = (1,1)):
     def roughen(segment, level):
