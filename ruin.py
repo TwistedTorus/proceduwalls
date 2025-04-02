@@ -417,9 +417,7 @@ if __name__ == "__main__":
 
     for i,floor in enumerate(b.floors):
         traces = floor_to_trace(floor)
-        trace1,trace2 = traces[0], traces[1]
-        trace1 = translate(trace1,0,120)
-        sketch_trace(trace1, ax_2d, style = "r")
-        trace2 = translate(trace2,0,120)
-        sketch_trace(trace2, ax_2d, style = "b")
+        for trace in traces:
+            trace = translate(trace,0,120)
+            sketch_trace(trace, ax_2d, style = "k")
     plt.show()
