@@ -2,7 +2,7 @@ from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 import svg
 
-from trace import wall_to_trace, sketch_trace, translate
+from trace import wall_to_trace, floor_to_trace, sketch_trace, translate
 
 ## this script generates a corner svg that is very cuttoutable.
 #
@@ -18,7 +18,6 @@ from trace import wall_to_trace, sketch_trace, translate
 #corner_seg.child_segments = [seg_1, seg_2, seg_3, seg_4]
 #corner_seg.fuse_children()
 #
-#print(to_svg([corner_seg.points, cut.points]))
 
 
 def verify_wall_code(wall_code):
@@ -53,7 +52,8 @@ def nodes_to_edges(nodes):
     edges = []
     for i in range(len(nodes) - 1):
         n1, n2 = nodes[i], nodes[i+1]
-        edges.append((n1, n2))
+        if not equiv(n1, n2):
+            edges.append((n1, n2))
     return edges
 
 def edge_match(e1, e2):
@@ -92,7 +92,12 @@ class Wall:
         # connecting edges. Connecting edges will have a standard format, 4 square cuts?
         self.floor_connecter_edges = []
         # the edges which constitue part of a wall base.
-        self.base_edges = nodes_to_edges(bottom_wall_nodes)
+        self.top_edges  = nodes_to_edges(top_wall_nodes)
+        self.base_edges = nodes_to_edges(bottom_wall_nodes[::-1])
+        tl,tr = self.twn[0], self.twn[-1]
+        bl,br = self.bwn[0], self.bwn[-1]
+        self.left_connecter  = nodes_to_edges([bl,tl])
+        self.right_connecter = nodes_to_edges([tr,br])
 
         self.generate_wall_connecter_edges()
         self.normal = self.normal()
@@ -132,7 +137,11 @@ class Wall:
                     pre_c, c, post_c = create_connector(f1_edge)
                     self.floor_connecter_edges.append(c)
                     floor.connecter_edges.append(c)
-                    floor.replace_edge(f2_edge, [pre_c, c, post_c])
+                    replacements = [pre_c, c, post_c]
+                    floor.replace_edge(f2_edge, replacements)
+                    for rep in replacements:
+                        floor.edge_wall_normals[rep] = self.normal
+
                     if not f2_edge in floor.non_free_edges:
                         floor.non_free_edges.append(f2_edge)
                         floor.non_free_edges.append(pre_c)
@@ -150,7 +159,7 @@ class Wall:
             z = [n.z+3 for n in ce]
             ax.plot3D(x,y,z,'red', alpha = opacity)
 
-        for ce in self.wall_connecter_edges:
+        for ce in self.left_connecter + self.right_connecter:
             x = [n.x for n in ce]
             y = [n.y for n in ce]
             z = [n.z for n in ce]
@@ -175,6 +184,8 @@ class Floor:
         self.non_free_edges = []
 
         self.normal = (0,0,1)
+
+        self.edge_wall_normals = {}
 
     def __str__(self):
         s = "Floor(\n"
@@ -376,10 +387,10 @@ if __name__ == "__main__":
     '''
 
     # format: Gi/Fi-
-    wc = "0/0-1/2-2/2-4/0"
+    wc = "0/0-1/2-2/2-3/1-4/0"
     #wc = "0/0-1/2-2/2-3/0-4/1"
 
-    wc = "0/0-1/2-2/2-4/0-5/1-5/2-6/1-7/1-8/0"
+    #wc = "0/0-1/2-2/2-4/0-5/1-5/2-6/1-7/1-8/0"
     #fc1 = "f0-0/1/2/3/4/0"
     fc2 = "f1-1/2/3/1"
     #fc3 = "f1-5/6/7/5"
@@ -389,8 +400,10 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=plt.figaspect(0.5))
 
     ax_2d = fig.add_subplot(2,1,1)
+    ax_2d.set_aspect('equal')
     ax_2d.plot([0,1],[0,1])
     ax_3d = fig.add_subplot(2,1,2,projection='3d')
+    ax_3d.set_aspect('equal')
 
     b.sketch_3d(ax_3d)
     offset = 0
@@ -401,4 +414,12 @@ if __name__ == "__main__":
             trace = translate(trace, offset, 0)
             sketch_trace(trace, ax_2d)
         offset += wall_len + 10
+
+    for i,floor in enumerate(b.floors):
+        traces = floor_to_trace(floor)
+        trace1,trace2 = traces[0], traces[1]
+        trace1 = translate(trace1,0,120)
+        sketch_trace(trace1, ax_2d, style = "r")
+        trace2 = translate(trace2,0,120)
+        sketch_trace(trace2, ax_2d, style = "b")
     plt.show()
