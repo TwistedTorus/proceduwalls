@@ -114,9 +114,10 @@ def wall_to_trace(wall):
 
 def floor_to_trace(floor):
 
-    def shift_nodes(trace, node_shifts, connecter_points):
+    def shift_nodes(trace, node_shifts, connecter_points, free_points):
         new_trace = []
         new_connecter_points = set()
+        new_free_points = set()
         new_connecter_normals = {}
         for point in trace:
             x,y = point
@@ -129,7 +130,9 @@ def floor_to_trace(floor):
             new_trace.append(new_point)
             if point in connecter_points:
                 new_connecter_points.add(new_point)
-        return new_trace, new_connecter_points, new_connecter_normals
+            if point in free_points:
+                new_free_points.add(new_point)
+        return new_trace, new_connecter_points, new_free_points, new_connecter_normals
 
     def remove_dupes(trace):
         new_trace = [trace[0]]
@@ -149,8 +152,11 @@ def floor_to_trace(floor):
     def edges_to_points(edges):
         trace = []
         for edge in edges:
-            p1, p2 = edge
-            trace += [p1, p2]
+            if type(edge) == Segment:
+                trace += edge.points
+            else:
+                p1, p2 = edge
+                trace += [p1, p2]
         return remove_dupes(trace)
 
     def to_connecter_edges(edge, shift_set):
@@ -178,8 +184,9 @@ def floor_to_trace(floor):
     trace = []
     d = 3
     node_shifts = {}
-    connecter_nodes = []
+    connecter_points = []
     connecter_normal = {}
+    free_points = []
     for edge in floor.edges:
         n1, n2 = edge
         p1, p2 = (n1.x, n1.y),(n2.x,n2.y)
@@ -193,13 +200,17 @@ def floor_to_trace(floor):
                 else:
                     node_shifts[p] = {normal}
                 if edge in floor.connecter_edges:
-                    connecter_nodes.append(p)
+                    connecter_points.append(p)
+        if edge in floor.free_edges:
+            for n in [n1,n2]:
+                p = (n.x,n.y)
+                if not p in free_points:
+                    free_points.append(p)
 
         trace.append(p1)
         trace.append(p2)
     new_trace = remove_dupes(trace)
-    new_trace, new_connecter_points, new_connecter_normals = shift_nodes(new_trace,node_shifts,connecter_nodes)
-    #print("connecter points:", new_connecter_points)
+    new_trace, new_connecter_points, new_free_points, new_connecter_normals = shift_nodes(new_trace,node_shifts,connecter_points,free_points)
     new_edges = points_to_edges(new_trace)
     nn_edges = []
     for edge in new_edges:
@@ -207,6 +218,9 @@ def floor_to_trace(floor):
         if p1 in new_connecter_points and p2 in new_connecter_points:
             connecter_edges = to_connecter_edges(edge, new_connecter_normals[p1])
             nn_edges +=  connecter_edges
+        elif p1 in new_free_points and p2 in new_free_points:
+            #nn_edges.append(edge)
+            nn_edges.append(crumbling_edge(p1, p2))
         else:
             nn_edges.append(edge)
 

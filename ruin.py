@@ -86,6 +86,16 @@ class Wall:
         self.twn = top_wall_nodes
         self.bwn = bottom_wall_nodes
 
+        min_z = None
+        max_z = 0
+        for node in top_wall_nodes:
+            if node.z > max_z:
+                max_z = node.z
+        for node in bottom_wall_nodes:
+            if min_z is None or node.z < min_z:
+                min_z = node.z
+        self.height = max_z - min_z
+
         # derive a list of edges (which we can make into segments and crumbling edges eventually)
         self.wall_edges = nodes_to_edges(self.wall_nodes + [self.wall_nodes[0]])
 
@@ -312,6 +322,7 @@ class Ruin:
                     wall_nodes[wi].append(wall_node)
 
         # now we have the node floor indexs,
+        print(wall_nodes)
         walls = []
         for i in range(4):
             wn = wall_nodes[i]
@@ -320,7 +331,8 @@ class Ruin:
                 wn = wn[1:] + [wn[0]]
             if len(wn) > 1:
                 w = Wall(f"w{i}",wn, bn)
-                walls.append(w)
+                if w.height > 0:
+                    walls.append(w)
 
         return walls
 
@@ -389,14 +401,18 @@ if __name__ == "__main__":
     # format: Gi/Fi-
     wc = "0/0-1/2-2/2-3/1-4/0"
     #wc = "0/0-1/2-2/2-3/0-4/1"
+    wc = "0/0-1/2-2/2-3/2-4/2-5/2-6/0"
 
     #wc = "0/0-1/2-2/2-4/0-5/1-5/2-6/1-7/1-8/0"
-    #fc1 = "f0-0/1/2/3/4/0"
+    fc1 = "f1-1/2/3/4/5/1"
     fc2 = "f1-1/2/3/1"
+    fc3 = "f1-3/4/5/3"
     #fc3 = "f1-5/6/7/5"
+    fcs = [fc1]
 
-    b = Ruin( (200,100,100), 3)
-    b.generate_from_build_code(wc,[fc2])
+    dimensions = (100, 200, 100)
+    b = Ruin(dimensions, 3)
+    b.generate_from_build_code(wc,fcs)
     fig = plt.figure(figsize=plt.figaspect(0.5))
 
     ax_2d = fig.add_subplot(2,1,1)
@@ -415,9 +431,11 @@ if __name__ == "__main__":
             sketch_trace(trace, ax_2d)
         offset += wall_len + 10
 
+    x_off = 0
     for i,floor in enumerate(b.floors):
         traces = floor_to_trace(floor)
         for trace in traces:
-            trace = translate(trace,0,120)
+            trace = translate(trace,x_off,dimensions[2]+20)
             sketch_trace(trace, ax_2d, style = "k")
+        x_off += dimensions[0]
     plt.show()
