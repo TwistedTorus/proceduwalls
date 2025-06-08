@@ -11,4 +11,5 @@ pricing:
 dependencies:
 
 - requires python3.12
-- matplotlib
+- pip install matplotlib
+- pip install --user svg.py

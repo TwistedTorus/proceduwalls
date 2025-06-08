@@ -1,7 +1,7 @@
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 
-from trace import wall_to_trace, floor_to_trace, sketch_trace, translate
+from trace import wall_to_trace, floor_to_trace, sketch_trace, translate, traces_to_svg
 
 def verify_wall_code(wall_code):
     # invalid build codes, cant have multiple nodes along a corner index
@@ -399,6 +399,42 @@ def plot_ruin(ruin):
             sketch_trace(trace, ax_2d, style = "k")
         x_off += dimensions[0]
     plt.show()
+
+def generate_svgs(ruin):
+    dimensions = ruin.dimensions
+
+    wall_svgs = []
+    floor_svgs = []
+
+    offset = 0
+    full_traces = []
+
+    for i,wall in enumerate(ruin.walls):
+        traces = wall_to_trace(wall)
+        wall_len = wall.base_length()
+        t_traces = []
+        for trace in traces:
+            t_traces.append(translate(trace, offset, 0))
+        wall_svg = traces_to_svg( t_traces )
+        wall_svgs.append(wall_svg)
+        full_traces += t_traces
+        offset += wall_len + 10
+
+    x_off = 0
+    for i,floor in enumerate(ruin.floors):
+        traces = floor_to_trace(floor)
+        t_traces = []
+        for trace in traces:
+            trace = translate(trace,x_off,dimensions[2]+20)
+            t_traces.append(trace)
+        floor_svg = traces_to_svg( t_traces )
+        floor_svgs.append(floor_svg)
+        full_traces += t_traces
+        x_off += dimensions[0]
+
+    full_svg = traces_to_svg(full_traces)
+
+    return wall_svgs, floor_svgs, full_svg, bounds
 
 if __name__ == "__main__":
 
