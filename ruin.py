@@ -1,24 +1,7 @@
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
-import svg
 
 from trace import wall_to_trace, floor_to_trace, sketch_trace, translate
-
-## this script generates a corner svg that is very cuttoutable.
-#
-#seg_1 = crumbling_edge((95,100),(0,0))
-#seg_2 = Segment((0,0),(200,0))
-#seg_3 = crumbling_edge((200,0),(105,100))
-#seg_4 = Segment((105,100),(95,100))
-#
-#cut = Segment((100,100),(100,0))
-#cut.zigify(2.5)
-#
-#corner_seg = Segment((95,100),(0,0))
-#corner_seg.child_segments = [seg_1, seg_2, seg_3, seg_4]
-#corner_seg.fuse_children()
-#
-
 
 def verify_wall_code(wall_code):
     # invalid build codes, cant have multiple nodes along a corner index
@@ -322,7 +305,6 @@ class Ruin:
                     wall_nodes[wi].append(wall_node)
 
         # now we have the node floor indexs,
-        print(wall_nodes)
         walls = []
         for i in range(4):
             wn = wall_nodes[i]
@@ -387,6 +369,37 @@ class Ruin:
                 dz = 0
             ax.text(bn.x,bn.y,bn.z+dz,f"{str(i)}",color="black")
 
+
+def plot_ruin(ruin):
+
+    dimensions = ruin.dimensions
+    fig = plt.figure(figsize=plt.figaspect(0.5))
+
+    ax_2d = fig.add_subplot(2,1,1)
+    ax_2d.set_aspect('equal')
+    ax_2d.plot([0,1],[0,1])
+    ax_3d = fig.add_subplot(2,1,2,projection='3d')
+    ax_3d.set_aspect('equal')
+
+    ruin.sketch_3d(ax_3d)
+    offset = 0
+    for i,wall in enumerate(ruin.walls):
+        traces = wall_to_trace(wall)
+        wall_len = wall.base_length()
+        for trace in traces:
+            trace = translate(trace, offset, 0)
+            sketch_trace(trace, ax_2d)
+        offset += wall_len + 10
+
+    x_off = 0
+    for i,floor in enumerate(ruin.floors):
+        traces = floor_to_trace(floor)
+        for trace in traces:
+            trace = translate(trace,x_off,dimensions[2]+20)
+            sketch_trace(trace, ax_2d, style = "k")
+        x_off += dimensions[0]
+    plt.show()
+
 if __name__ == "__main__":
 
     '''
@@ -411,31 +424,6 @@ if __name__ == "__main__":
     fcs = [fc1]
 
     dimensions = (100, 200, 100)
-    b = Ruin(dimensions, 3)
-    b.generate_from_build_code(wc,fcs)
-    fig = plt.figure(figsize=plt.figaspect(0.5))
-
-    ax_2d = fig.add_subplot(2,1,1)
-    ax_2d.set_aspect('equal')
-    ax_2d.plot([0,1],[0,1])
-    ax_3d = fig.add_subplot(2,1,2,projection='3d')
-    ax_3d.set_aspect('equal')
-
-    b.sketch_3d(ax_3d)
-    offset = 0
-    for i,wall in enumerate(b.walls):
-        traces = wall_to_trace(wall)
-        wall_len = wall.base_length()
-        for trace in traces:
-            trace = translate(trace, offset, 0)
-            sketch_trace(trace, ax_2d)
-        offset += wall_len + 10
-
-    x_off = 0
-    for i,floor in enumerate(b.floors):
-        traces = floor_to_trace(floor)
-        for trace in traces:
-            trace = translate(trace,x_off,dimensions[2]+20)
-            sketch_trace(trace, ax_2d, style = "k")
-        x_off += dimensions[0]
-    plt.show()
+    r = Ruin(dimensions, 3)
+    r.generate_from_build_code(wc,fcs)
+    plot_ruin(r)

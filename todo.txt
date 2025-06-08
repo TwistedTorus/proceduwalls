@@ -7,3 +7,8 @@ pricing:
 
 - get rental price of laser cutting machines.
 - pricing of mdf boards.
+
+dependencies:
+
+- requires python3.12
+- matplotlib
